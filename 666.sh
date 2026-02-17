@@ -1,88 +1,57 @@
-#!/system/bin/sh
-sleep 15
 
-echo "========================================"
-echo "  一加平板Pro 120帧循环锁帧脚本 启动中"
-echo "========================================"
+/system/bin/stty -echo 2>/dev/null
 
-# 基础性能配置
-POLICY0_FREQ="2265000"
-POLICY2_FREQ="3148000"
-POLICY5_FREQ="2956000"
-POLICY7_FREQ="3302000"
-MIN_GPU_CLOCK_MHZ="915"
+# Sensor paths
+CPU=/sys/class/thermal/thermal_zone10/temp
+GPU=/sys/class/thermal/thermal_zone12/temp
+BAT=/sys/class/power_supply/battery/temp
+CUR=/sys/class/power_supply/battery/current_now
+VOL=/sys/class/power_supply/battery/voltage_now
 
-POLICY0_MAX_FREQ="/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq"
-POLICY0_MIN_FREQ="/sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq"
-POLICY2_MAX_FREQ="/sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq"
-POLICY2_MIN_FREQ="/sys/devices/system/cpu/cpufreq/policy2/scaling_min_freq"
-POLICY5_MAX_FREQ="/sys/devices/system/cpu/cpufreq/policy5/scaling_max_freq"
-POLICY5_MIN_FREQ="/sys/devices/system/cpu/cpufreq/policy5/scaling_min_freq"
-POLICY7_MAX_FREQ="/sys/devices/system/cpu/cpufreq/policy7/scaling_max_freq"
-POLICY7_MIN_FREQ="/sys/devices/system/cpu/cpufreq/policy7/scaling_min_freq"
-MIN_CLOCK_PATH="/sys/class/kgsl/kgsl-3d0/min_clock_mhz"
-
-echo "[1] 设置CPU频率权限..."
-chmod 666 $POLICY0_MAX_FREQ $POLICY0_MIN_FREQ
-chmod 666 $POLICY2_MAX_FREQ $POLICY2_MIN_FREQ
-chmod 666 $POLICY5_MAX_FREQ $POLICY5_MAX_FREQ
-chmod 666 $POLICY7_MAX_FREQ $POLICY7_MIN_FREQ
-chmod 666 $MIN_CLOCK_PATH
-
-echo "[2] 锁定CPU频率..."
-echo "$POLICY0_FREQ" > $POLICY0_MAX_FREQ
-echo "$POLICY0_FREQ" > $POLICY0_MIN_FREQ
-echo "$POLICY2_FREQ" > $POLICY2_MAX_FREQ
-echo "$POLICY2_FREQ" > $POLICY2_MIN_FREQ
-echo "$POLICY5_FREQ" > $POLICY5_MAX_FREQ
-echo "$POLICY5_FREQ" > $POLICY5_MIN_FREQ
-echo "$POLICY7_FREQ" > $POLICY7_MAX_FREQ
-echo "$POLICY7_FREQ" > $POLICY7_MIN_FREQ
-
-echo "[3] 锁定GPU最小频率..."
-echo "$MIN_GPU_CLOCK_MHZ" > $MIN_CLOCK_PATH
-
-# 性能函数
-hons() {
-    local content="$1"
-    local file_path="$2"
-    chmod 666 "$file_path" >/dev/null 2>&1
-    echo "$content" > "$file_path" 2>&1
-    chmod 444 "$file_path" >/dev/null 2>&1
+read_temp() {
+ raw=$(/system/bin/cat $1 2>/dev/null)
+ [ -z "$raw" ] && raw=0
+    div=$2
+    int=$((raw / div))
+    dec=$((raw % div / (div/10)))
+    [ $dec -lt 10 ] && dec=0$dec
+    echo $int.$dec
 }
 
-echo "[4] 关闭系统CPU频率限制..."
-hons "1" "/proc/game_opt/disable_cpufreq_limit"
+read_power() {
+  curr=$(/system/bin/cat $CUR 2>/dev/null)
+    volt=$(/system/bin/cat $VOL 2>/dev/null)
+    [ -z "$curr" ] && curr=0
+    [ -z "$volt" ] && volt=0
+    if [ $curr -lt 0 ]; then
+        echo 0.0
+        return
+    fi
+    pow=$((curr * volt / 100000000000))
+    int=$((pow / 10))
+    dec=$((pow % 10))
+    echo $int.$dec
+}
 
-echo "[5] 设置CPU调度为 performance..."
-for file in /sys/bus/cpu/devices/*/*/scaling_governor; do
-    hons "performance" "$file"
+# Show grid (ASCII only)
+show_grid() {
+    /system/bin/clear 2>/dev/null
+    /system/bin/echo "                         +------------+  +------------+"
+    /system/bin/echo "                         | CPU:$1 C |  GPU:$2 C |"
+    /system/bin/echo "                         +------------+  +------------+"
+    /system/bin/echo "                         +------------+  +------------+"
+    /system/bin/echo "                         | BAT:$3 C |  POW:$4 W |"
+    /system/bin/echo "                         +------------+  +------------+"
+}
+
+while :; do
+    CPUT=$(read_temp $CPU 1000)
+    GPUT=$(read_temp $GPU 1000)
+    BATT=$(read_temp $BAT 10)
+    POWR=$(read_power)
+    show_grid "$CPUT" "$GPUT" "$BATT" "$POWR"
+    /system/bin/sleep 0.1
 done
 
-echo ""
-echo "========================================"
-echo "  开始循环强制锁定 120 帧（每2秒一次）"
-echo "  帧率低于120会自动拉回"
-echo "========================================"
-echo ""
-
-# 循环锁帧
-while true; do
-    echo "[锁定中] 强制保持 120 帧..."
-    service call SurfaceFlinger 1035 i32 1
-    service call SurfaceFlinger 1036 i32 120
-
-    setprop debug.sf.max_frame_rate 120
-    setprop debug.sf.frame_rate 120
-    setprop debug.sf.preferred_frame_rate 120
-    setprop debug.sf.override_frame_rate 120
-
-    setprop persist.sys.max_refresh_rate 120
-    setprop persist.sys.ui.frame_rate 120
-    setprop persist.sys.game.frame_rate 120
-
-    setprop vendor.display.disable_dynamic_fps 1
-    setprop vendor.display.disable_idle_frame_rate 1
-
-    sleep 2
-done
+# Exit
+trap '/system/bin/stty echo 2>/dev/null; /system/bin/clear; exit 0' INT TERM
