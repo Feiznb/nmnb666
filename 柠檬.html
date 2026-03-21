@@ -1,0 +1,42 @@
+const WebSocket = require('ws');
+const fs = require('fs');
+const path = require('path');
+
+const LOG_FILE = path.join(__dirname, 'chat_history.json');
+if (!fs.existsSync(LOG_FILE)) fs.writeFileSync(LOG_FILE, '[]');
+
+function getHistory() {
+  try {
+    return JSON.parse(fs.readFileSync(LOG_FILE, 'utf8'));
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveHistory(msg) {
+  const history = getHistory();
+  history.push(msg);
+  fs.writeFileSync(LOG_FILE, JSON.stringify(history, null, 2));
+}
+
+const wss = new WebSocket.Server({ port: 10000 });
+let clients = [];
+
+wss.on('connection', (ws) => {
+  clients.push(ws);
+  // 发送历史消息
+  ws.send(JSON.stringify({ type: 'history', list: getHistory() }));
+
+  ws.on('message', (buf) => {
+    const data = JSON.parse(buf.toString());
+    saveHistory(data);
+    // 广播给其他人
+    clients.forEach(c => c !== ws && c.send(JSON.stringify(data)));
+  });
+
+  ws.on('close', () => {
+    clients = clients.filter(x => x !== ws);
+  });
+});
+
+console.log('WebSocket 服务启动在端口 10000');
