@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>风驰内核-谂R3</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fafbfc; color: #1a1a2e; font-family: 'Inter', sans-serif; }
+    ::selection { background: #4f46e5; color: white; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f0f2f5; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+    /* 悬浮液态玻璃导航 */
+    .glass-float-nav {
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(255,255,255,0.5);
+      border-radius: 9999px;
+      box-shadow:
+        0 8px 32px rgba(0,0,0,0.06),
+        0 2px 8px rgba(0,0,0,0.03),
+        inset 0 1px 0 rgba(255,255,255,0.6);
+      transition: box-shadow 0.3s ease, background 0.3s ease;
+    }
+    .glass-float-nav:hover {
+      box-shadow:
+        0 12px 40px rgba(0,0,0,0.09),
+        0 4px 12px rgba(0,0,0,0.04),
+        inset 0 1px 0 rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.8);
+    }
+    .glass-float-nav.scrolled {
+      background: rgba(255,255,255,0.85);
+      box-shadow:
+        0 12px 40px rgba(0,0,0,0.1),
+        0 4px 12px rgba(0,0,0,0.05),
+        inset 0 1px 0 rgba(255,255,255,0.8);
+    }
+
+    .card-hover { transition: all 0.25s ease; }
+    .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.08); }
+    .btn-hover { transition: all 0.2s ease; }
+    .btn-hover:active { transform: scale(0.97); }
+    .gradient-text {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .input-focus:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); outline: none; }
+    .modal-overlay { background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); }
+    .pulse-dot {
+      width: 8px; height: 8px; background: #10b981; border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(16,185,129,0.6); animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
+      70% { box-shadow: 0 0 0 10px rgba(16,185,129,0); }
+      100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+    }
+    .code-block { background: #1e1e2e; border: 1px solid #2d2d3d; border-radius: 12px; overflow: hidden; }
+    .code-header { background: #16162a; border-bottom: 1px solid #2d2d3d; padding: 12px 16px; display: flex; align-items: center; }
+    .code-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+    pre { color: #e1e1e6; }
+
+    /* ===== 向上运动模糊入场 ===== */
+    .scroll-reveal {
+      opacity: 0;
+      transform: translateY(40px);
+      filter: blur(8px);
+      transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1),
+                  transform 0.7s cubic-bezier(0.16,1,0.3,1),
+                  filter 0.7s cubic-bezier(0.16,1,0.3,1);
+    }
+    .scroll-reveal.revealed {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+    .scroll-reveal-delay-1 { transition-delay: 0.08s; }
+    .scroll-reveal-delay-2 { transition-delay: 0.16s; }
+    .scroll-reveal-delay-3 { transition-delay: 0.24s; }
+    .scroll-reveal-delay-4 { transition-delay: 0.32s; }
+    .scroll-reveal-delay-5 { transition-delay: 0.40s; }
+
+    /* 按钮交互增强 */
+    .btn-hover:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .btn-hover:active { transform: translateY(0) scale(0.97); box-shadow: none; }
+
+    /* 卡片交互增强 */
+    .card-hover { transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s ease; }
+    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 16px 40px -8px rgba(0,0,0,0.1); }
+
+    /* 下载按钮涟漪 */
+    .download-btn { position: relative; overflow: hidden; }
+    .download-btn::after {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      width: 0; height: 0; background: rgba(255,255,255,0.2);
+      border-radius: 50%; transform: translate(-50%,-50%);
+      transition: width 0.5s ease, height 0.5s ease, opacity 0.5s ease; opacity: 0;
+    }
+    .download-btn:active::after { width: 300px; height: 300px; opacity: 1; transition: width 0s, height 0s, opacity 0s; }
+
+    /* 导航链接增强 */
+    .nav-link-glass { position: relative; }
+    .nav-link-glass::after {
+      content: ''; position: absolute; bottom: -4px; left: 50%;
+      width: 0; height: 2px; background: #4f46e5; border-radius: 1px;
+      transition: all 0.25s ease; transform: translateX(-50%);
+    }
+    .nav-link-glass:hover::after { width: 100%; }
+
+    /* 弹窗入场 */
+    @keyframes modalIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); filter: blur(4px); }
+      to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
+
+    /* 标签页增强 */
+    .tab-btn { transition: all 0.2s cubic-bezier(0.16,1,0.3,1); }
+    .tab-btn:active { transform: scale(0.95); }
+  </style>
+</head>
+<body class="antialiased">
+
+<!-- Toast -->
+<div id="toast" class="fixed top-6 right-6 z-[100] flex items-center gap-2 bg-white border border-gray-200 shadow-lg rounded-xl px-5 py-3 pointer-events-none opacity-0 translate-x-4 transition-all duration-300">
+  <i id="toast-icon" data-lucide="check-circle" class="w-5 h-5 text-green-500"></i>
+  <span id="toast-msg" class="text-sm text-gray-700"></span>
+</div>
+
+<!-- 移动端菜单 - 完全保持原样 -->
+<div id="mobile-menu" class="fixed inset-0 bg-white/95 backdrop-blur-xl z-50 flex-col hidden">
+  <div class="flex justify-end p-6">
+    <button onclick="toggleMobile()" class="p-2 rounded-lg hover:bg-gray-100">
+      <i data-lucide="x" class="w-6 h-6"></i>
+    </button>
+  </div>
+  <div class="flex flex-col items-center gap-4 text-lg font-medium">
+    <a href="#models" onclick="toggleMobile()" class="py-2">内核列表</a>
+    <a href="#download" onclick="toggleMobile()" class="py-2">下载中心</a>
+    <a href="#docs" onclick="toggleMobile()" class="py-2">部署指南</a>
+    <a href="#compare" onclick="toggleMobile()" class="py-2">版本对比</a>
+    <div class="w-16 h-px bg-gray-200 my-2"></div>
+    <div id="mobile-guest">
+      <button onclick="showModal('login');toggleMobile()" class="text-gray-600 py-2">登录</button>
+      <button onclick="showModal('register');toggleMobile()" class="bg-indigo-600 text-white px-8 py-2.5 rounded-full font-medium">注册</button>
+    </div>
+    <div id="mobile-user" class="hidden flex-col items-center gap-3">
+      <div class="flex items-center gap-2 bg-gray-100 rounded-full px-4 py-1.5">
+        <div class="pulse-dot"></div>
+        <span id="mobile-email" class="text-sm font-medium text-gray-700"></span>
+      </div>
+      <button onclick="openDashboard();toggleMobile()" class="text-gray-600 py-2">控制台</button>
+      <button onclick="logout();toggleMobile()" class="text-red-500 py-2 text-sm">退出登录</button>
+    </div>
+  </div>
+</div>
+
+<!-- 悬浮液态玻璃导航栏 -->
+<nav id="main-nav" class="fixed top-4 left-1/2 -translate-x-1/2 z-40 glass-float-nav px-4 md:px-6 py-2.5 flex items-center justify-between w-[92%] max-w-4xl">
+  <a href="#" class="flex items-center gap-2.5 group">
+    <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center transition-transform group-hover:scale-110">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2L2 7l10 5 10-5-10-5z" fill="white" opacity="0.9"/>
+        <path d="M2 17l10 5 10-5" stroke="white" stroke-width="2" fill="none" opacity="0.7"/>
+        <path d="M2 12l10 5 10-5" stroke="white" stroke-width="2" fill="none"/>
+      </svg>
+    </div>
+    <span class="font-bold text-lg">风驰内核</span>
+  </a>
+  <div class="hidden md:flex items-center gap-8">
+    <a href="#models" class="nav-link-glass text-sm text-gray-500 hover:text-gray-900 transition-colors">内核列表</a>
+    <a href="#download" class="nav-link-glass text-sm text-gray-500 hover:text-gray-900 transition-colors">下载中心</a>
+    <a href="#docs" class="nav-link-glass text-sm text-gray-500 hover:text-gray-900 transition-colors">部署指南</a>
+    <a href="#compare" class="nav-link-glass text-sm text-gray-500 hover:text-gray-900 transition-colors">版本对比</a>
+  </div>
+  <div class="hidden md:flex items-center gap-3">
+    <div id="nav-guest">
+      <button onclick="showModal('login')" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors btn-hover">登录</button>
+      <button onclick="showModal('register')" class="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded-full shadow-md shadow-indigo-200 hover:bg-indigo-700 btn-hover">注册</button>
+    </div>
+    <div id="nav-user" class="hidden items-center gap-3">
+      <div class="flex items-center gap-2 bg-gray-100/80 rounded-full px-4 py-1.5">
+        <div class="pulse-dot"></div>
+        <span id="nav-email" class="text-sm font-medium text-gray-700"></span>
+      </div>
+      <button onclick="openDashboard()" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">控制台</button>
+    </div>
+  </div>
+  <!-- 三个横条：保持原样 -->
+  <button onclick="toggleMobile()" class="md:hidden p-2">
+    <i data-lucide="menu" class="w-6 h-6 text-gray-600"></i>
+  </button>
+</nav>
+
+<!-- Hero 区域 -->
+<section class="pt-28 pb-16 md:pt-40 md:pb-24 px-6">
+  <div class="max-w-4xl mx-auto text-center">
+    <span class="scroll-reveal inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
+      <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>开源模型内核下载平台
+    </span>
+    <h1 class="scroll-reveal scroll-reveal-delay-1 text-4xl md:text-5xl font-extrabold tracking-tight mb-5">
+      <span class="gradient-text">风驰内核</span> 模型权重
+    </h1>
+    <p class="scroll-reveal scroll-reveal-delay-2 text-gray-500 text-lg max-w-xl mx-auto mb-10">
+      获取官方发布的内核文件，覆盖从7B到671B规模。支持HuggingFace与ModelScope镜像下载。
+    </p>
+    <div class="scroll-reveal scroll-reveal-delay-3 flex flex-col sm:flex-row justify-center gap-4">
+      <button id="hero-main-btn" onclick="showModal('register')" class="bg-gray-900 text-white px-8 py-3 rounded-xl font-semibold shadow-xl shadow-gray-200 hover:bg-gray-800 btn-hover flex items-center justify-center gap-2">
+        注册并开始下载 <i data-lucide="arrow-right" class="w-5 h-5"></i>
+      </button>
+      <a href="#download" class="bg-white border border-gray-200 px-8 py-3 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 btn-hover flex items-center justify-center gap-2">
+        浏览内核
+      </a>
+    </div>
+    <div class="scroll-reveal scroll-reveal-delay-4 grid grid-cols-3 gap-8 mt-16 max-w-lg mx-auto text-center">
+      <div><div class="text-2xl font-bold text-gray-900">6</div><div class="text-xs text-gray-500 mt-1">内核版本</div></div>
+      <div><div class="text-2xl font-bold text-gray-900">671B</div><div class="text-xs text-gray-500 mt-1">最大参数</div></div>
+      <div><div class="text-2xl font-bold text-gray-900">MIT</div><div class="text-xs text-gray-500 mt-1">开源协议</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 内核列表 -->
+<section id="models" class="pb-16 px-6">
+  <div class="max-w-5xl mx-auto">
+    <div class="mb-10">
+      <h2 class="scroll-reveal text-2xl font-bold mb-2">可用内核</h2>
+      <p class="scroll-reveal scroll-reveal-delay-1 text-gray-500 text-sm">点击卡片查看详情并下载</p>
+    </div>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="scroll-reveal scroll-reveal-delay-1 bg-white border border-gray-200 rounded-2xl p-6 card-hover cursor-pointer" onclick="showKernelDetail('风驰内核-V1', '671B MoE', 'FP8 / BF16')">
+        <div class="flex justify-between items-start mb-4">
+          <h3 class="font-bold text-lg">风驰内核-R3</h3>
+          <span class="bg-blue-100 text-blue-700 text-xs px-3 py-1 rounded-full font-medium">轻量</span>
+        </div>
+        <p class="text-gray-500 text-sm mb-4">轻量版适用于轻量设备</p>
+        <div class="flex flex-wrap gap-2 text-xs text-gray-400">
+          <span class="bg-gray-50 px-2 py-1 rounded">源码56.6M</span>
+          <span class="bg-gray-50 px-2 py-1 rounded">TP16</span>
+          <span class="bg-gray-50 px-2 py-1 rounded">项目5.9M</span>
+        </div>
+      </div>
+      <div class="scroll-reveal scroll-reveal-delay-2 bg-white border border-gray-200 rounded-2xl p-6 card-hover cursor-pointer" onclick="showKernelDetail('绝世内核-R1', '671B MoE', 'FP8 / BF16')">
+        <div class="flex justify-between items-start mb-4">
+          <h3 class="font-bold text-lg">绝世内核-514</h3>
+          <span class="bg-purple-100 text-purple-700 text-xs px-3 py-1 rounded-full font-medium">旗舰</span>
+        </div>
+        <p class="text-gray-500 text-sm mb-4">大模型性能好功能多适配度高</p>
+        <div class="flex flex-wrap gap-2 text-xs text-gray-400">
+          <span class="bg-gray-50 px-2 py-1 rounded">源码56.6M</span>
+          <span class="bg-gray-50 px-2 py-1 rounded">FP8</span>
+          <span class="bg-gray-50 px-2 py-1 rounded">项目6.3M</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 下载区域 -->
+<section id="download" class="pb-16 px-6 bg-white border-y border-gray-100">
+  <div class="max-w-5xl mx-auto">
+    <div class="mb-10 pt-16">
+      <h2 class="scroll-reveal text-2xl font-bold mb-2">下载中心</h2>
+      <p class="scroll-reveal scroll-reveal-delay-1 text-gray-500 text-sm">登录后即可下载</p>
+    </div>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="scroll-reveal scroll-reveal-delay-1 bg-gray-50 rounded-2xl p-6">
+        <div class="flex justify-between mb-4">
+          <h4 class="font-bold">风驰内核-R3</h4>
+          <span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded">FP8</span>
+        </div>
+        <button onclick="handleDownloadClick('风驰内核-R3', 'FP8', 'http://pan.cdndns.site/down/4598c80b5882937d208b5676407a4d7e')" class="download-btn block w-full bg-gray-900 text-white text-center py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 btn-hover">
+          立即下载
+        </button>
+      </div>
+      <div class="scroll-reveal scroll-reveal-delay-2 bg-gray-50 rounded-2xl p-6">
+        <div class="flex justify-between mb-4">
+          <h4 class="font-bold">绝世内核-551</h4>
+          <span class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">FP8</span>
+        </div>
+        <button onclick="handleDownloadClick('风驰内核-R1', 'FP8', 'http://38.76.209.72:6861/latest.rc')" class="download-btn block w-full bg-gray-900 text-white text-center py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 btn-hover">
+          立即下载
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 部署指南 -->
+<section id="docs" class="pb-16 px-6">
+  <div class="max-w-4xl mx-auto pt-16">
+    <h2 class="scroll-reveal text-2xl font-bold mb-8">快速部署</h2>
+    <div class="scroll-reveal scroll-reveal-delay-1 bg-white border rounded-2xl p-6 shadow-sm">
+      <div class="flex gap-2 mb-6">
+        <button onclick="switchTab('python')" id="tab-python" class="tab-btn px-4 py-1.5 rounded-lg text-sm font-medium bg-white border shadow-sm">Python</button>
+        <button onclick="switchTab('ollama')" id="tab-ollama" class="tab-btn px-4 py-1.5 rounded-lg text-sm font-medium border border-transparent hover:bg-gray-50 transition-colors">Ollama</button>
+        <button onclick="switchTab('docker')" id="tab-docker" class="tab-btn px-4 py-1.5 rounded-lg text-sm font-medium border border-transparent hover:bg-gray-50 transition-colors">Docker</button>
+      </div>
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot" style="background:#ff5f56;"></div>
+          <div class="code-dot" style="background:#ffbd2e;"></div>
+          <div class="code-dot" style="background:#27c93f;"></div>
+          <span class="text-xs text-gray-400 ml-3 font-mono" id="code-filename">deploy.py</span>
+          <button onclick="copyCode()" class="ml-auto text-xs text-gray-400 hover:text-white transition-colors" id="copy-btn">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i> 复制
+          </button>
+        </div>
+        <div class="p-5 overflow-x-auto">
+          <pre class="text-sm font-mono leading-relaxed" id="code-content"><span style="color:#c084fc">from</span> transformers <span style="color:#c084fc">import</span> AutoModelForCausalLM, AutoTokenizer
+
+model_path = <span style="color:#a5d6ff">"./风驰内核-R3-Distill-Qwen-7B"</span>
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+model = AutoModelForCausalLM.from_pretrained(
+    model_path,
+    torch_dtype=<span style="color:#a5d6ff">"auto"</span>,
+    device_map=<span style="color:#a5d6ff">"auto"</span>
+)</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 版本对比 -->
+<section id="compare" class="pb-20 px-6">
+  <div class="max-w-4xl mx-auto pt-16">
+    <h2 class="scroll-reveal text-2xl font-bold mb-8">版本对比</h2>
+    <div class="scroll-reveal scroll-reveal-delay-1 bg-white border rounded-2xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+          <tr>
+            <th class="p-4 text-left">内核</th>
+            <th class="p-4 text-right">参数量</th>
+            <th class="p-4 text-right">最小显存</th>
+            <th class="p-4 text-right">GGUF大小</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <tr class="hover:bg-gray-50 transition-colors"><td class="p-4 font-medium">风驰内核-R3</td><td class="p-4 text-right">671B MoE</td><td class="p-4 text-right">8×80GB</td><td class="p-4 text-right">-</td></tr>
+          <tr class="hover:bg-gray-50 transition-colors"><td class="p-4 font-medium">风驰内核-516</td><td class="p-4 text-right">671B MoE</td><td class="p-4 text-right">8×80GB</td><td class="p-4 text-right">-</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 页脚 -->
+<footer class="scroll-reveal border-t border-gray-100 py-12 px-6">
+  <div class="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+    <div class="flex items-center gap-2 text-sm text-gray-500">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" fill="#4f46e5"/></svg>
+      <span>© 2025 风驰内核下载平台</span>
+    </div>
+    <div class="flex gap-6 text-gray-400">
+      <a href="#" class="hover:text-gray-600 transition-colors"><i data-lucide="github" class="w-5 h-5"></i></a>
+      <a href="#" class="hover:text-gray-600 transition-colors"><i data-lucide="twitter" class="w-5 h-5"></i></a>
+    </div>
+  </div>
+</footer>
+
+<script>
+const API = '';
+let currentUser = null;
+let currentApiKey = localStorage.getItem('fc_api_key') || null;
+
+// 导航栏滚动效果
+window.addEventListener('scroll', function() {
+  const nav = document.getElementById('main-nav');
+  if (window.scrollY > 20) nav.classList.add('scrolled');
+  else nav.classList.remove('scrolled');
+});
+
+// 滚动入场
+(function() {
+  const observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) entry.target.classList.add('revealed');
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.scroll-reveal').forEach(function(el) { observer.observe(el); });
+  });
+})();
+
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  const icon = document.getElementById('toast-icon');
+  document.getElementById('toast-msg').textContent = msg;
+  const icons = { success: ['check-circle','text-green-500'], error: ['alert-circle','text-red-500'], warn: ['alert-triangle','text-yellow-500'] };
+  const [name, cls] = icons[type] || icons.success;
+  icon.setAttribute('data-lucide', name);
+  icon.className = `w-5 h-5 ${cls}`;
+  lucide.createIcons();
+  el.classList.remove('opacity-0', 'translate-x-4');
+  el.classList.add('opacity-100', 'translate-x-0');
+  clearTimeout(el._timeout);
+  el._timeout = setTimeout(() => { el.classList.add('opacity-0', 'translate-x-4'); el.classList.remove('opacity-100', 'translate-x-0'); }, 3000);
+}
+
+function toggleMobile() {
+  const menu = document.getElementById('mobile-menu');
+  menu.classList.toggle('hidden');
+  menu.classList.toggle('flex');
+}
+
+function updateNav() {
+  const guest = document.getElementById('nav-guest');
+  const user = document.getElementById('nav-user');
+  const mobileGuest = document.getElementById('mobile-guest');
+  const mobileUser = document.getElementById('mobile-user');
+  const heroBtn = document.getElementById('hero-main-btn');
+  if (currentApiKey && currentUser) {
+    guest.style.display = 'none'; user.style.display = 'flex';
+    document.getElementById('nav-email').textContent = currentUser.email;
+    mobileGuest.classList.add('hidden'); mobileUser.classList.remove('hidden'); mobileUser.classList.add('flex');
+    document.getElementById('mobile-email').textContent = currentUser.email;
+    heroBtn.innerHTML = '立即下载 <i data-lucide="arrow-right" class="w-5 h-5"></i>';
+    heroBtn.onclick = function() { document.getElementById('download').scrollIntoView({ behavior: 'smooth' }); };
+  } else {
+    guest.style.display = 'flex'; user.style.display = 'none';
+    mobileGuest.classList.remove('hidden'); mobileUser.classList.add('hidden'); mobileUser.classList.remove('flex');
+    heroBtn.innerHTML = '注册并开始下载 <i data-lucide="arrow-right" class="w-5 h-5"></i>';
+    heroBtn.onclick = function() { showModal('register'); };
+  }
+  lucide.createIcons();
+}
+
+function closeAllModals() { document.querySelectorAll('.modal-container').forEach(el => el.remove()); }
+function showModal(type, data = null) {
+  closeAllModals();
+  if (type === 'login') return showLoginModal();
+  if (type === 'register') return showRegisterModal();
+  if (type === 'apikey') return showApiKeyModal(data);
+  if (type === 'kernel') return showKernelModal(data);
+  if (type === 'dashboard') return showDashboardModal();
+}
+
+function showLoginModal() {
+  const html = `
+  <div class="modal-container fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4" onclick="if(event.target===this)closeAllModals()">
+    <div class="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl" style="animation:modalIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards;">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-xl font-bold">登录账户</h3>
+        <button onclick="closeAllModals()" class="p-2 hover:bg-gray-100 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-5 flex gap-2">
+        <i data-lucide="info" class="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5"></i>
+        <p class="text-sm text-blue-700">登录后可使用下载功能和管理API Key</p>
+      </div>
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">邮箱</label>
+          <input type="email" name="email" required class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus text-sm" placeholder="your@email.com">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">密码</label>
+          <input type="password" name="password" required minlength="8" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus text-sm" placeholder="至少8位">
+        </div>
+        <button type="submit" class="download-btn w-full bg-gray-900 text-white py-3 rounded-xl font-semibold hover:bg-gray-800 btn-hover">登录</button>
+      </form>
+      <p class="mt-4 text-center text-sm text-gray-500">
+        没有账号？<button onclick="showModal('register')" class="text-indigo-600 font-medium hover:underline">立即注册</button>
+      </p>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  lucide.createIcons();
+  document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const fd = new FormData(e.target);
+    try {
+      const res = await fetch(`${API}/api/login`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email:fd.get('email'),password:fd.get('password')}) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '登录失败');
+      currentApiKey = data.user.apiKey;
+      currentUser = {id:data.user.id, email:data.user.email, createdAt:data.user.createdAt};
+      localStorage.setItem('fc_api_key', data.user.apiKey);
+      closeAllModals(); updateNav(); toast('登录成功，欢迎回来！');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+function showRegisterModal() {
+  const html = `
+  <div class="modal-container fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4" onclick="if(event.target===this)closeAllModals()">
+    <div class="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl" style="animation:modalIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards;">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-xl font-bold">创建账户</h3>
+        <button onclick="closeAllModals()" class="p-2 hover:bg-gray-100 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-5 flex gap-2">
+        <i data-lucide="info" class="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5"></i>
+        <div class="text-sm text-blue-700">
+          <p class="font-medium">注册后获取API Key</p>
+          <p class="text-xs text-blue-600 mt-1">用于C++命令行工具验证身份</p>
+        </div>
+      </div>
+      <form id="register-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">邮箱</label>
+          <input type="email" name="email" required class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus text-sm" placeholder="your@email.com">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">密码</label>
+          <input type="password" name="password" required minlength="8" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus text-sm" placeholder="至少8位">
+        </div>
+        <div class="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1">
+          <div class="flex items-center gap-1.5"><i data-lucide="check" class="w-3 h-3 text-green-500"></i>注册即同意服务条款</div>
+          <div class="flex items-center gap-1.5"><i data-lucide="check" class="w-3 h-3 text-green-500"></i>邮箱仅用于账户管理</div>
+        </div>
+        <button type="submit" class="download-btn w-full bg-gray-900 text-white py-3 rounded-xl font-semibold hover:bg-gray-800 btn-hover">注册</button>
+      </form>
+      <p class="mt-4 text-center text-sm text-gray-500">
+        已有账号？<button onclick="showModal('login')" class="text-indigo-600 font-medium hover:underline">立即登录</button>
+      </p>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  lucide.createIcons();
+  document.getElementById('register-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const fd = new FormData(e.target);
+    try {
+      const res = await fetch(`${API}/api/register`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email:fd.get('email'),password:fd.get('password')}) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '注册失败');
+      closeAllModals(); showModal('apikey', data.user);
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+function showApiKeyModal(user) {
+  const html = `
+  <div class="modal-container fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4" onclick="if(event.target===this)closeAllModals()">
+    <div class="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl text-center" style="animation:modalIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards;">
+      <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <i data-lucide="check-circle" class="w-8 h-8 text-green-600"></i>
+      </div>
+      <h3 class="text-xl font-bold mb-2">注册成功！</h3>
+      <p class="text-sm text-gray-500 mb-4">请保存您的API Key（仅显示一次）</p>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 flex gap-2 text-left">
+        <i data-lucide="alert-triangle" class="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5"></i>
+        <p class="text-xs text-yellow-700">关闭后将无法再次查看，请立即复制保存</p>
+      </div>
+      <div class="bg-gray-50 rounded-xl p-4 mb-4">
+        <div class="text-xs text-gray-500 mb-1">您的API Key</div>
+        <div class="font-mono text-sm break-all select-all bg-white border rounded-lg p-3">${user.apiKey}</div>
+      </div>
+      <p class="text-xs text-gray-400 mb-4">用于C++客户端：<code class="bg-gray-100 px-1 rounded">./fc --save &lt;key&gt;</code></p>
+      <div class="flex gap-3">
+        <button onclick="copyAndLogin('${user.apiKey}')" class="download-btn flex-1 bg-gray-900 text-white py-3 rounded-xl font-medium btn-hover flex items-center justify-center gap-2">
+          <i data-lucide="copy" class="w-4 h-4"></i>复制并登录
+        </button>
+        <button onclick="closeAllModals();showModal('login')" class="flex-1 border border-gray-200 py-3 rounded-xl font-medium text-gray-600 btn-hover">手动登录</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  lucide.createIcons();
+}
+
+function copyText(text, cb) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(cb).catch(function(){fallbackCopy(text,cb);});
+  } else { fallbackCopy(text,cb); }
+}
+function fallbackCopy(text, cb) {
+  var ta = document.createElement('textarea'); ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;top:0;';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta); if(cb) cb();
+}
+function copyAndLogin(key) {
+  copyText(key, function(){ toast('已复制到剪贴板'); });
+  closeAllModals(); showModal('login');
+}
+
+function showKernelDetail(name, params, versions) {
+  if (!currentApiKey) { toast('请先登录','warn'); return showModal('login'); }
+  const html = `
+  <div class="modal-container fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4" onclick="if(event.target===this)closeAllModals()">
+    <div class="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl" style="animation:modalIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards;">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-xl font-bold">${name}</h3>
+        <button onclick="closeAllModals()" class="p-2 hover:bg-gray-100 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div class="space-y-3 text-sm">
+        <div class="flex justify-between py-2 border-b"><span class="text-gray-500">参数规模</span><span class="font-medium">${params}</span></div>
+        <div class="flex justify-between py-2 border-b"><span class="text-gray-500">可用版本</span><span class="font-medium">${versions}</span></div>
+        <div class="flex justify-between py-2"><span class="text-gray-500">许可协议</span><span>MIT</span></div>
+      </div>
+      <button onclick="closeAllModals()" class="w-full mt-6 border border-gray-200 py-3 rounded-xl font-medium text-gray-600 btn-hover">关闭</button>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  lucide.createIcons();
+}
+
+async function showDashboardModal() {
+  if (!currentApiKey) return showModal('login');
+  try {
+    const res = await fetch(`${API}/api/me`, { headers: { 'Authorization': `Bearer ${currentApiKey}` } });
+    if (!res.ok) throw new Error('会话过期');
+    const user = await res.json();
+    const downloads = user.downloads || [];
+    const listHTML = downloads.length ? downloads.slice(-10).reverse().map(d => `
+      <div class="flex justify-between items-center py-2 px-3 hover:bg-gray-50 rounded-lg transition-colors">
+        <span class="text-sm">${d.kernelName} <span class="text-xs text-gray-400">${d.version}</span></span>
+        <span class="text-xs text-gray-400">${new Date(d.time).toLocaleDateString('zh-CN')}</span>
+      </div>`).join('') : '<p class="text-sm text-gray-400 py-4 text-center">暂无下载记录</p>';
+    const html = `
+    <div class="modal-container fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4" onclick="if(event.target===this)closeAllModals()">
+      <div class="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl max-h-[85vh] overflow-y-auto" style="animation:modalIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards;">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="text-xl font-bold">控制台</h3>
+          <button onclick="closeAllModals()" class="p-2 hover:bg-gray-100 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="bg-gray-50 rounded-2xl p-4 mb-6">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold">${user.email[0].toUpperCase()}</div>
+            <div>
+              <div class="font-semibold text-sm">${user.email}</div>
+              <div class="text-xs text-gray-500">注册于 ${new Date(user.createdAt).toLocaleDateString('zh-CN')}</div>
+            </div>
+          </div>
+          <div class="text-xs text-gray-500">累计下载 <span class="font-semibold text-gray-700">${downloads.length}</span> 次</div>
+        </div>
+        <div class="mb-6">
+          <label class="text-sm font-medium mb-2 block">API Key</label>
+          <div class="flex gap-2">
+            <input value="${user.apiKey}" readonly class="flex-1 bg-gray-50 border rounded-xl px-4 py-2 text-xs font-mono">
+            <button onclick="copyText('${user.apiKey}',function(){toast('已复制')})" class="px-3 border rounded-xl hover:bg-gray-50 transition-colors"><i data-lucide="copy" class="w-4 h-4"></i></button>
+          </div>
+        </div>
+        <div class="mb-6">
+          <h4 class="text-sm font-medium mb-2">最近下载</h4>
+          <div class="divide-y divide-gray-100 border rounded-xl">${listHTML}</div>
+        </div>
+        <button onclick="logout()" class="w-full border border-red-200 text-red-600 py-2.5 rounded-xl font-medium hover:bg-red-50 btn-hover">退出登录</button>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    lucide.createIcons();
+  } catch (err) { toast('请重新登录','error'); logout(); }
+}
+
+function openDashboard() { showModal('dashboard'); }
+
+function logout() {
+  currentApiKey = null; currentUser = null;
+  localStorage.removeItem('fc_api_key');
+  closeAllModals(); updateNav(); toast('已退出登录');
+}
+
+async function handleDownloadClick(name, version, url) {
+  if (!currentApiKey) { toast('请先登录后再下载','warn'); return showModal('login'); }
+  fetch(`${API}/api/downloads`, {
+    method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${currentApiKey}`},
+    body:JSON.stringify({kernelName:name,version})
+  }).catch(()=>{});
+  toast(`${name} 开始下载`);
+  window.open(url,'_blank');
+}
+
+const snippets = {
+  python: { file:'deploy.py', code:`<span style="color:#c084fc">from</span> transformers <span style="color:#c084fc">import</span> AutoModelForCausalLM, AutoTokenizer\n\nmodel_path = <span style="color:#a5d6ff">"./风驰内核-R1-Distill-Qwen-7B"</span>\ntokenizer = AutoTokenizer.from_pretrained(model_path)\nmodel = AutoModelForCausalLM.from_pretrained(\n    model_path,\n    torch_dtype=<span style="color:#a5d6ff">"auto"</span>,\n    device_map=<span style="color:#a5d6ff">"auto"</span>\n)` },
+  ollama: { file:'ollama.sh', code:`<span style="color:#6c7086"># 安装Ollama</span>\ncurl -fsSL https://ollama.com/install.sh | sh\n\n<span style="color:#6c7086"># 创建模型</span>\nollama create 风驰内核-r1-7b -f Modelfile\nollama run 风驰内核-r1-7b` },
+  docker: { file:'docker-compose.yml', code:`<span style="color:#c084fc">services</span>:\n  <span style="color:#89dceb">风驰内核</span>:\n    <span style="color:#89dceb">image</span>: <span style="color:#a5d6ff">ghcr.io/huggingface/text-generation-inference</span>\n    <span style="color:#89dceb">runtime</span>: <span style="color:#a5d6ff">nvidia</span>\n    <span style="color:#89dceb">ports</span>:\n      - <span style="color:#a5d6ff">"8080:80"</span>` }
+};
+
+function switchTab(lang) {
+  document.querySelectorAll('#docs button[id^="tab-"]').forEach(b => { b.className = 'tab-btn px-4 py-1.5 rounded-lg text-sm font-medium border border-transparent hover:bg-gray-50 transition-colors'; });
+  document.getElementById(`tab-${lang}`).className = 'tab-btn px-4 py-1.5 rounded-lg text-sm font-medium bg-white border shadow-sm';
+  document.getElementById('code-filename').textContent = snippets[lang].file;
+  document.getElementById('code-content').innerHTML = snippets[lang].code;
+}
+
+function copyCode() {
+  const text = document.getElementById('code-content').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i> 已复制';
+    lucide.createIcons();
+    setTimeout(() => { btn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5"></i> 复制'; lucide.createIcons(); }, 2000);
+  });
+}
+
+lucide.createIcons();
+
+(function() {
+  var key = localStorage.getItem('fc_api_key');
+  if (key) {
+    fetch('/api/me', { headers: { 'Authorization': 'Bearer ' + key } })
+      .then(function(r){ return r.json(); })
+      .then(function(d) {
+        if (d.email) {
+          currentApiKey = key;
+          currentUser = { id:d.id, email:d.email, createdAt:d.createdAt };
+          updateNav();
+          fetch('/api/notices', { headers:{ 'Authorization':'Bearer '+key } })
+            .then(function(r){ return r.json(); })
+            .then(function(d2){ if(d2.notices && d2.notices.length>0 && typeof showNoticeModal==='function') showNoticeModal(d2.notices); }).catch(function(){});
+        } else { localStorage.removeItem('fc_api_key'); updateNav(); }
+      })
+      .catch(function(){ updateNav(); });
+  } else { updateNav(); }
+})();
+</script>
+</body>
+</html>
