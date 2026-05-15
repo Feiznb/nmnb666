@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#f0f0f0">
+
+    <!-- 顶部：输入框 + 执行按钮 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <EditText
+            android:id="@+id/et_command"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="输入命令或文件路径"
+            android:singleLine="true"
+            android:background="@drawable/et_bg"
+            android:padding="12dp"
+            android:textSize="16sp"/>
+
+        <Button
+            android:id="@+id/btn_execute"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="执行"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/btn_primary"
+            android:textColor="#ffffff"
+            android:textSize="16sp"
+            android:paddingLeft="20dp"
+            android:paddingRight="20dp"/>
+    </LinearLayout>
+
+    <!-- 中间：文件选择按钮 -->
+    <Button
+        android:id="@+id/btn_select_file"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="选择 .sh 文件"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/btn_secondary"
+        android:textColor="#333333"
+        android:textSize="16sp"
+        android:padding="12dp"/>
+
+    <!-- 底部：终端输出区域（更大） -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="16dp"
+        android:background="#1e1e1e"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/tv_terminal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#00ff00"
+            android:typeface="monospace"
+            android:textSize="14sp"
+            android:lineSpacingExtra="4dp"
+            android:text="$ 终端输出将在这里显示..."/>
+    </ScrollView>
+
+</LinearLayout>
